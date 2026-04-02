@@ -78,4 +78,15 @@ class TicketService {
       body: jsonEncode({'technicien_id': technicienId}),
     );
   }
+
+  Future<Map<String, dynamic>> getStatistiques() async {
+    final response = await http.get(
+      Uri.parse('$_base/statistiques/'),
+      headers: await _headers(),
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+    throw Exception('Impossible de charger les statistiques.');
+  }
 }

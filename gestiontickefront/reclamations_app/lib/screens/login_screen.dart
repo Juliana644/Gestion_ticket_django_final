@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import 'home_screen.dart';
+import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -133,6 +134,26 @@ class _LoginScreenState extends State<LoginScreen> {
                                 style: TextStyle(
                                     color: Colors.white, fontSize: 16)),
                       ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text('Pas encore de compte ? ',
+                            style: TextStyle(color: Colors.grey, fontSize: 13)),
+                        GestureDetector(
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const RegisterScreen()),
+                          ),
+                          child: const Text("S'inscrire",
+                              style: TextStyle(
+                                  color: Color(0xFF006743),
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13)),
+                        ),
+                      ],
                     ),
                   ],
                 ),

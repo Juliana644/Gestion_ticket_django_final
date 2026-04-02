@@ -91,3 +91,28 @@ class TicketViewSet(viewsets.ModelViewSet):
                 {'erreur': 'Technicien introuvable.'},
                 status=status.HTTP_404_NOT_FOUND
             )
+    @action(detail=False, methods=['get'],
+        permission_classes=[IsAuthenticated])
+    def statistiques(self, request):
+        """GET /api/tickets/statistiques/"""
+        from accounts.models import CustomUser
+        from django.db.models import Count
+
+        stats_statut = dict(
+            Ticket.objects.values_list('statut')
+                .annotate(total=Count('id'))
+                .values_list('statut', 'total')
+        )
+        stats_technicien = list(
+            Ticket.objects.filter(assigne_a__isnull=False)
+                .values('assigne_a__first_name', 'assigne_a__last_name')
+                .annotate(total=Count('id'))
+                .order_by('-total')
+        )
+        total = Ticket.objects.count()
+
+        return Response({
+            'total':            total,
+            'par_statut':       stats_statut,
+            'par_technicien':   stats_technicien,
+        })

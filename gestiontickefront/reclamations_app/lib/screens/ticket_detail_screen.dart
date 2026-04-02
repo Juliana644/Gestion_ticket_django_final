@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/ticket.dart';
 import '../services/ticket_service.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class TicketDetailScreen extends StatefulWidget {
   final int ticketId;
   const TicketDetailScreen({super.key, required this.ticketId});
+
   @override
   State<TicketDetailScreen> createState() => _TicketDetailScreenState();
 }
@@ -14,7 +15,7 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
   final _service = TicketService();
   final _commentCtrl = TextEditingController();
   late Future<Ticket> _futureTicket;
-  String _role = '';
+  String _userRole = '';
 
   @override
   void initState() {
@@ -31,39 +32,71 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
 
   Future<void> _loadRole() async {
     final prefs = await SharedPreferences.getInstance();
-    setState(() => _role = prefs.getString('user_role') ?? 'CITOYEN');
-  }
-
-  Future<void> _changerStatut(String statut) async {
-    await _service.changerStatut(widget.ticketId, statut);
-    _charger();
-  }
-
-  Future<void> _commenter() async {
-    if (_commentCtrl.text.trim().isEmpty) return;
-    await _service.commenter(widget.ticketId, _commentCtrl.text.trim());
-    _commentCtrl.clear();
-    _charger();
+    setState(() => _userRole = prefs.getString('user_role') ?? '');
   }
 
   Color _statColor(String s) {
     switch (s) {
       case 'OUVERT':
-        return Colors.blue;
+        return Colors.blue.shade700;
       case 'EN_COURS':
-        return Colors.orange;
+        return Colors.orange.shade700;
       case 'RESOLU':
-        return Colors.green;
+        return Colors.green.shade700;
       case 'CLOS':
-        return Colors.grey;
+        return Colors.grey.shade600;
       default:
         return Colors.black;
     }
   }
 
+  Future<void> _changerStatut(Ticket ticket) async {
+    final statuts = ['OUVERT', 'EN_COURS', 'RESOLU', 'CLOS'];
+    final choisi = await showDialog<String>(
+      context: context,
+      builder: (_) => SimpleDialog(
+        title: const Text('Changer le statut'),
+        children: statuts
+            .map((s) => SimpleDialogOption(
+                  onPressed: () => Navigator.pop(context, s),
+                  child: Row(children: [
+                    Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                          color: _statColor(s), shape: BoxShape.circle),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(s.replaceAll('_', ' ')),
+                  ]),
+                ))
+            .toList(),
+      ),
+    );
+    if (choisi == null) return;
+    await _service.changerStatut(ticket.id, choisi);
+    _charger();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Statut mis à jour : $choisi'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
+
+  Future<void> _ajouterCommentaire(Ticket ticket) async {
+    if (_commentCtrl.text.trim().isEmpty) return;
+    await _service.commenter(ticket.id, _commentCtrl.text.trim());
+    _commentCtrl.clear();
+    _charger();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF5F5F5),
       appBar: AppBar(
         title: const Text('Détail du ticket'),
         backgroundColor: const Color(0xFF006743),
@@ -76,7 +109,7 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return Center(child: Text('Erreur : ${snapshot.error}'));
+            return Center(child: Text('Erreur: ${snapshot.error}'));
           }
           final ticket = snapshot.data!;
           return SingleChildScrollView(
@@ -84,7 +117,7 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // En-tête ticket
+                // Carte principale
                 Card(
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12)),
@@ -93,114 +126,118 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(children: [
-                          Expanded(
-                            child: Text(ticket.titre,
-                                style: const TextStyle(
-                                    fontSize: 18, fontWeight: FontWeight.bold)),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: _statColor(ticket.statut).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(12),
-                              border:
-                                  Border.all(color: _statColor(ticket.statut)),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(ticket.titre,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 18)),
                             ),
-                            child: Text(ticket.statut,
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color:
+                                    _statColor(ticket.statut).withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                    color: _statColor(ticket.statut)
+                                        .withOpacity(0.5)),
+                              ),
+                              child: Text(
+                                ticket.statut.replaceAll('_', ' '),
                                 style: TextStyle(
                                     color: _statColor(ticket.statut),
-                                    fontWeight: FontWeight.bold)),
-                          ),
-                        ]),
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 12),
+                              ),
+                            ),
+                          ],
+                        ),
                         const Divider(height: 20),
+                        _InfoRow(
+                            icon: Icons.category_outlined,
+                            label: 'Type',
+                            value: ticket.typeTicket),
+                        _InfoRow(
+                            icon: Icons.flag_outlined,
+                            label: 'Priorité',
+                            value: ticket.priorite),
+                        _InfoRow(
+                            icon: Icons.person_outline,
+                            label: 'Auteur',
+                            value: ticket.auteurNom),
+                        if (ticket.assigneA != null)
+                          _InfoRow(
+                              icon: Icons.engineering_outlined,
+                              label: 'Assigné à',
+                              value: ticket.assigneA!),
+                        _InfoRow(
+                            icon: Icons.calendar_today_outlined,
+                            label: 'Créé le',
+                            value: ticket.dateCreation.substring(0, 10)),
+                        const SizedBox(height: 10),
+                        const Text('Description',
+                            style: TextStyle(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 4),
                         Text(ticket.description,
-                            style: const TextStyle(fontSize: 14)),
-                        const SizedBox(height: 12),
-                        Wrap(spacing: 8, runSpacing: 8, children: [
-                          _Chip(Icons.category, ticket.typeTicket),
-                          _Chip(Icons.flag, ticket.priorite),
-                          _Chip(Icons.person, ticket.auteurNom),
-                          if (ticket.assigneA != null)
-                            _Chip(Icons.engineering, ticket.assigneA!),
-                        ]),
+                            style: TextStyle(color: Colors.grey.shade700)),
                       ],
                     ),
                   ),
                 ),
-                // Changer statut (technicien/admin)
-                if (_role == 'TECHNICIEN' || _role == 'ADMIN') ...[
-                  const SizedBox(height: 16),
-                  const Text('Changer le statut',
-                      style:
-                          TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                  const SizedBox(height: 8),
-                  Wrap(spacing: 8, children: [
-                    for (final s in ['OUVERT', 'EN_COURS', 'RESOLU', 'CLOS'])
-                      ElevatedButton(
-                        onPressed:
-                            ticket.statut == s ? null : () => _changerStatut(s),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _statColor(s),
-                          foregroundColor: Colors.white,
-                        ),
-                        child: Text(s),
-                      ),
-                  ]),
-                ],
-                // Historique
-                if (ticket.historique.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  const Text('Historique',
-                      style:
-                          TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                  const SizedBox(height: 8),
-                  ...ticket.historique.map((h) => ListTile(
-                        dense: true,
-                        leading: const Icon(Icons.history, size: 18),
-                        title: Text(
-                            '${h["ancien_statut"]} → ${h["nouveau_statut"]}'),
-                        subtitle: Text(h["modifie_par"]?["email"] ?? ''),
-                      )),
-                ],
-                // Commentaires
-                const SizedBox(height: 16),
-                const Text('Commentaires',
-                    style:
-                        TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                const SizedBox(height: 8),
-                if (ticket.commentaires.isEmpty)
-                  const Text('Aucun commentaire.',
-                      style: TextStyle(color: Colors.grey)),
-                ...ticket.commentaires.map((c) => Card(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      child: ListTile(
-                        leading: const CircleAvatar(
-                            child: Icon(Icons.person, size: 16)),
-                        title: Text(c["contenu"] ?? ''),
-                        subtitle: Text(c["auteur"]?["email"] ?? '',
-                            style: const TextStyle(fontSize: 11)),
-                      ),
-                    )),
-                // Ajouter commentaire
-                const SizedBox(height: 12),
-                Row(children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _commentCtrl,
-                      decoration: const InputDecoration(
-                        hintText: 'Ajouter un commentaire...',
-                        border: OutlineInputBorder(),
+                // Bouton changer statut (Tech/Admin seulement)
+                if (_userRole == 'TECHNICIEN' || _userRole == 'ADMIN') ...[
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _changerStatut(ticket),
+                      icon: const Icon(Icons.edit_outlined),
+                      label: const Text('Changer le statut'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF006743),
+                        side: const BorderSide(color: Color(0xFF006743)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    icon: const Icon(Icons.send, color: Color(0xFF006743)),
-                    onPressed: _commenter,
+                ],
+                // Commentaires
+                const SizedBox(height: 20),
+                const Text('Commentaires',
+                    style:
+                        TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                const SizedBox(height: 8),
+                // Ajouter commentaire
+                Card(
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _commentCtrl,
+                            decoration: const InputDecoration(
+                              hintText: 'Ajouter un commentaire...',
+                              border: InputBorder.none,
+                              isDense: true,
+                            ),
+                            maxLines: null,
+                          ),
+                        ),
+                        IconButton(
+                          icon:
+                              const Icon(Icons.send, color: Color(0xFF006743)),
+                          onPressed: () => _ajouterCommentaire(ticket),
+                        ),
+                      ],
+                    ),
                   ),
-                ]),
+                ),
               ],
             ),
           );
@@ -210,18 +247,31 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
   }
 }
 
-class _Chip extends StatelessWidget {
+class _InfoRow extends StatelessWidget {
   final IconData icon;
   final String label;
-  const _Chip(this.icon, this.label);
+  final String value;
+
+  const _InfoRow(
+      {required this.icon, required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
-    return Chip(
-      avatar: Icon(icon, size: 14),
-      label: Text(label, style: const TextStyle(fontSize: 12)),
-      padding: EdgeInsets.zero,
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: Colors.grey.shade500),
+          const SizedBox(width: 8),
+          Text('$label : ',
+              style:
+                  const TextStyle(fontWeight: FontWeight.w500, fontSize: 13)),
+          Expanded(
+            child: Text(value,
+                style: TextStyle(color: Colors.grey.shade700, fontSize: 13)),
+          ),
+        ],
+      ),
     );
   }
 }

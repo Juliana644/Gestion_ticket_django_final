@@ -3,6 +3,7 @@ import '../services/ticket_service.dart';
 
 class CreateTicketScreen extends StatefulWidget {
   const CreateTicketScreen({super.key});
+
   @override
   State<CreateTicketScreen> createState() => _CreateTicketScreenState();
 }
@@ -39,9 +40,11 @@ class _CreateTicketScreenState extends State<CreateTicketScreen> {
         Navigator.pop(context);
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur : $e'), backgroundColor: Colors.red),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur : $e'), backgroundColor: Colors.red),
+        );
+      }
     } finally {
       setState(() => _loading = false);
     }
@@ -66,7 +69,6 @@ class _CreateTicketScreenState extends State<CreateTicketScreen> {
                 controller: _titreCtrl,
                 decoration: const InputDecoration(
                   labelText: 'Titre *',
-                  border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.title),
                 ),
                 validator: (v) =>
@@ -78,7 +80,6 @@ class _CreateTicketScreenState extends State<CreateTicketScreen> {
                 maxLines: 4,
                 decoration: const InputDecoration(
                   labelText: 'Description *',
-                  border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.description),
                   alignLabelWithHint: true,
                 ),
@@ -90,7 +91,6 @@ class _CreateTicketScreenState extends State<CreateTicketScreen> {
                 value: _type,
                 decoration: const InputDecoration(
                   labelText: 'Type de ticket',
-                  border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.category),
                 ),
                 items: _types
@@ -103,7 +103,6 @@ class _CreateTicketScreenState extends State<CreateTicketScreen> {
                 value: _priorite,
                 decoration: const InputDecoration(
                   labelText: 'Priorité',
-                  border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.flag),
                 ),
                 items: _priorites
@@ -120,16 +119,11 @@ class _CreateTicketScreenState extends State<CreateTicketScreen> {
                         height: 18,
                         child: CircularProgressIndicator(
                             color: Colors.white, strokeWidth: 2))
-                    : const Icon(Icons.send, color: Colors.white),
-                label: Text(
-                  _loading ? 'Envoi...' : 'Soumettre le ticket',
-                  style: const TextStyle(color: Colors.white, fontSize: 16),
-                ),
+                    : const Icon(Icons.send),
+                label: Text(_loading ? 'Envoi...' : 'Soumettre le ticket',
+                    style: const TextStyle(fontSize: 16)),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF006743),
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8)),
                 ),
               ),
             ],
